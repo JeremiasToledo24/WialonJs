@@ -1,12 +1,12 @@
 /**
- wialonjs-api 0.0.4, a JS library for Wialon Remote API
- Copyright (c) 2015-2017, Gurtam (http://gurtam.com)
+ wialonjs-api 0.0.9, a JS library for Wialon Remote API
+ Copyright (c) 2015-2018, Gurtam (http://gurtam.com)
 */
 (function (window) {/* jshint -W079 */
 /* global define */
 
 var W = {
-    version: '0.0.4',
+    version: '0.0.9',
     debug: false
 };
 
@@ -25,7 +25,7 @@ function expose() {
 // define Wialon for Node module pattern loaders, including Browserify
 if (typeof module === 'object' && typeof module.exports === 'object') {
     module.exports = W;
-// define Wialon as an AMD module
+    // define Wialon as an AMD module
 } else if (typeof define === 'function' && define.amd) {
     define(W);
 }
@@ -710,8 +710,8 @@ W.Request = W.Class.extend({
     _url: '',
     _io: null,
     _counter: 0,
-    _requests: [],
-    _callbacks: [],
+    _requests: null,
+    _callbacks: null,
     _frameReady: false,
 
     /** Constructor
@@ -727,6 +727,10 @@ W.Request = W.Class.extend({
         if (counter) {
             this._counter = counter;
         }
+
+        // init requests and callback pool
+        this._requests = [];
+        this._callbacks = [];
 
         // create iframe
         this._io = document.createElement('iframe');
@@ -841,7 +845,7 @@ W.Request = W.Class.extend({
 
     _frameLoaded: function () {
         if (!this._frameReady) {
-            this._io.contentWindow.postMessage('{id: 0, source:"' + this._id + '"}', this._url);
+            this._io.contentWindow.postMessage(JSON.stringify({id: 0, source: this._id}), this._url);
         } else {
             while (this._requests.length) {
                 this._io.contentWindow.postMessage(this._requests.pop(), this._url);
@@ -896,6 +900,12 @@ W.Session = W.Evented.extend({
 
     _sid: null,
     _url: null,
+
+    _gisRenderUrl: 'https://render-maps.wialon.com',
+    _gisSearchUrl: 'https://search-maps.wialon.com',
+    _gisGeocodeUrl: 'https://geocode-maps.wialon.com',
+    _gisRoutingUrl: 'https://routing-maps.wialon.com',
+
     _items: {},
     _classes: {},
     _features: {},
@@ -1038,6 +1048,20 @@ W.Session = W.Evented.extend({
                 this._request = new W.Request(this._url, '', {}, counter);
             }
 
+            // reassign GIS urls
+            if (data.gis_render) {
+                this._gisRenderUrl = data.gis_render.replace(/\/+$/, '');
+            }
+            if (data.gis_geocode) {
+                this._gisGeocodeUrl = data.gis_geocode.replace(/\/+$/, '');
+            }
+            if (data.gis_search) {
+                this._gisSearchUrl = data.gis_search.replace(/\/+$/, '');
+            }
+            if (data.gis_routing) {
+                this._gisRoutingUrl = data.gis_routing.replace(/\/+$/, '');
+            }
+
             // store login response data
             this._sid = data.eid;
             this._serverTime = data.tm;
@@ -1152,6 +1176,8 @@ W.Session = W.Evented.extend({
                     this.fire('featuresChanged');
                 }
             }
+            // fire event after avl_evts
+            this.fire('sessionUpdated');
         }
     },
 
@@ -1233,14 +1259,15 @@ W.Session.include({
             // from base URL (e.g. http://hst-api.wialon.com)
             var arr = this._url.split('//');
             if (arr.length >= 2) {
-                if (gisType === 'render') {
-                    return arr[0] + '//render-maps.wialon.com/' + arr[1];
-                } else if (gisType === 'search') {
-                    return arr[0] + '//search-maps.wialon.com/' + arr[1];
-                } else if (gisType === 'geocode') {
-                    return arr[0] + '//geocode-maps.wialon.com/' + arr[1];
-                } else if (gisType === 'routing') {
-                    return arr[0] + '//routing-maps.wialon.com/' + arr[1];
+                var endpoint = {
+                    render: this._gisRenderUrl,
+                    search: this._gisSearchUrl,
+                    geocode: this._gisGeocodeUrl,
+                    routing: this._gisRoutingUrl
+                }[gisType];
+
+                if (endpoint) {
+                    return endpoint + '/' + arr[1];
                 }
             }
         }

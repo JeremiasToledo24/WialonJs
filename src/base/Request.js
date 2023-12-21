@@ -10,8 +10,8 @@ W.Request = W.Class.extend({
     _url: '',
     _io: null,
     _counter: 0,
-    _requests: [],
-    _callbacks: [],
+    _requests: null,
+    _callbacks: null,
     _frameReady: false,
 
     /** Constructor
@@ -27,6 +27,10 @@ W.Request = W.Class.extend({
         if (counter) {
             this._counter = counter;
         }
+
+        // init requests and callback pool
+        this._requests = [];
+        this._callbacks = [];
 
         // create iframe
         this._io = document.createElement('iframe');
@@ -141,7 +145,7 @@ W.Request = W.Class.extend({
 
     _frameLoaded: function () {
         if (!this._frameReady) {
-            this._io.contentWindow.postMessage('{id: 0, source:"' + this._id + '"}', this._url);
+            this._io.contentWindow.postMessage(JSON.stringify({id: 0, source: this._id}), this._url);
         } else {
             while (this._requests.length) {
                 this._io.contentWindow.postMessage(this._requests.pop(), this._url);
